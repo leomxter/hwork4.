@@ -1,113 +1,108 @@
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot,Dispatcher,types,executor
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
+from aiogram.types import ReplyKeyboardMarkup,KeyboardButton,InlineKeyboardMarkup,InlineKeyboardButton
 import config
-import logging
 import sqlite3
+import logging
+import datetime
 
-bot = Bot(token=config.token)
-dp = Dispatcher(bot, storage=MemoryStorage())    
+bot = Bot(config.token)
+dp = Dispatcher(bot, storage=MemoryStorage())
 storage = MemoryStorage()
 logging.basicConfig(level=logging.INFO)
 
-connect = sqlite3.connect('users.db')
-cursor = connect.cursor()
-cursor.execute("""CREATE TABLE IF NOT EXISTS users(
-    username VARCHAR(255),
+
+start_connect = sqlite3.connect('users.db')
+cur  = start_connect.cursor()
+
+cur.execute("""CREATE TABLE IF NOT EXISTS users(
     first_name VARCHAR(255),
     last_name VARCHAR(255),
-    id_user INTEGER,
-    contact['phone_number'] INTEGER
+    username VARCHAR(255),
+    chat_id INTEGER,
+    phone_number INTEGER
     );
     """)
 
-connect2 = sqlite3.connect('address.db')
-cursor2 = connect2.cursor()
-cursor2.execute("""CREATE TABLE IF NOT EXISTS users(
-    address_longtitude VARCHAR(255),
-    address_latitude VARCHAR(255),
-    id_user INTEGER
-    );
-    """)
-connect.commit()
-
-connect3 = sqlite3.connect('orders.db')
-cursor3 = connect3.cursor()
-cursor3.execute("""CREATE TABLE IF NOT EXISTS users(
-    address_destination VARCHAR(255),
+cur.execute("""CREATE TABLE  IF NOT EXISTS orders(
     title VARCHAR(255),
-    date_time_order INTEGER
+    address VARCHAR(255),
+    date_time_order  VARCHAR(255)
+    
     );
     """)
-connect.commit()
 
-@dp.message_handler(commands = 'start')
-async def start(msg: types.Message):
-    inline_kb =[
-        [InlineKeyboardButton("Отправить номер", callback_data = "contact")],
-        [InlineKeyboardButton("Отправить локацию", callback_data = "location")],
-        [InlineKeyboardButton("Заказать", callback_data = "order")]
-    ]
-    inline_keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb)
-    await msg.answer(f"Здраствуйте {msg.from_user.first_name}", reply_markup=inline_keyboard)
-
-class ContactGet(StatesGroup):
-    contact = State()
-
-class LocationGet(StatesGroup):
-    location = State()
-
-class OrderGet(StatesGroup):
-    order = State()
-
-@dp.callback_query_handler(lambda call: call)
-async def call(call):
-    print(call)
-    if call.data == "Отправить номер":
-        print('contact')
-    await ContactGet.contact.set()
+cur.execute("""CREATE TABLE  IF NOT EXISTS address(
+    id_user INTEGER,
+    address_longitude INTEGER,
+    address_latitude INTEGER
     
-@dp.callback_query_handler(lambda call: call)
-async def call(call):
-    print(call)
-    if call.data == "Отправить локацию":
-        print('location')
-    await LocationGet.location.set()
+    );
+    """)
+start_connect.commit()
 
-@dp.callback_query_handler(lambda call: call)
-async def call(call):
-    print(call)
-    if call.data == "Заказать":
-        print('order')
-    await OrderGet.order.set()
+inline_kb = [
+        [InlineKeyboardButton("Отправить контакт", request_contact=True)],
+        [InlineKeyboardButton("Отправитьлокацию",request_location=True)],
+        [InlineKeyboardButton("Заказать еду!", callback_data = "Заказать еду!")],
+    ]
+inline_keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb)
 
-@dp.message_handler(state = ContactGet.contact)
-async def UserInfo(message:types.Message, state:FSMContext):
-    cursor = connect.cursor()
-    cursor.execute(f"SELECT id_user FROM users WHERE id_user = {message.from_user.id};")
-    res = cursor.fetchall()
-    if res == []:
-        cursor.execute(f"""INSERT INTO users VALUES ('{message.from_user.username}', 
-        '{message.from_user.first_name}', '{message.from_user.last_name}', 
-        {message.from_user.id}, {message.contact['phone_number']}')""")
-        await state.finish()
-    connect.commit()
+kb = [
+    [KeyboardButton("Отправить контакт", request_contact=True)],
+    [KeyboardButton("Заказать еду!")],
+    
+    [KeyboardButton("Отправитьлокацию", request_location=True)]
+]
+keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keyboard=True,)
 
-dp.message_handler(state = LocationGet.location)
-async def UserInfo(message:types.Message, state:FSMContext):
-    cursor2 = connect2.cursor()
-    cursor2.execute(f"""INSERT INTO users VALUES ('{message.from_user.location['longtitude']}', 
-    '{message.from_user.location['latitude']}', {message.from_user.id}')""")
+
+    
+@dp.message_handler(commands=["start"])
+async def start(message : types.Message):
+    cur  = start_connect.cursor()
+    cur.execute(f"SELECT chat_id FROM users WHERE  chat_id  == {message.from_user.id};")
+    result = cur.fetchall()
+    if result ==[]:
+        cur.execute(f"INSERT INTO users (first_name, last_name, username, chat_id, )VALUES ('{message.from_user.first_name}',  '{message.from_user.last_name}','{message.from_user.username}',{message.chat.id},);")
+        start_connect.commit()
+    await message.answer(f"Здравстуйте ,{message.from_user.full_name}. Вас приветствует администрация Geektech.\nЕсли хотите узнать обо мне больше нажмите: /help ", reply_markup=keyboard)
+    await message.answer("Вот что я могу", reply_markup=inline_keyboard)
+
+@dp.message_handler(content_types=types.ContentType.CONTACT)
+async def get_contact(msg:types.Message):
+    
+        await msg.reply("OK")
+        cur.execute(f"UPDATE users SET phone_number = {msg.contact['phone_number']} WHERE (chat_id = {msg.from_user.id});")
+        start_connect.commit()
+        
+@dp.message_handler(content_types=types.ContentType.LOCATION)
+async def get_location(msg:types.Message):
+    
+    cur.execute(f"INSERT INTO address (id_user, address_longitude, address_latitude) VALUES ({msg.from_user.id}, {msg.location['latitude']}, {msg.location['longitude']});")
+    start_connect.commit()
+    await msg.reply("OK")
+
+class ContactForm(StatesGroup):
+    client = State()
+
+@dp.message_handler(text = "Заказать еду!")
+async def start(message : types.Message):
+    await message.answer("Введите ваш заказ следующим образом: ")
+    await message.reply("Еда, Адрес")
+    await ContactForm.client.set()
+    
+
+@dp.message_handler(state=ContactForm.client)
+async def get_contact(message: types.Message, state: FSMContext):
+    times = datetime.datetime.now()
+        
+    cur_contact = start_connect.cursor()
+    res = message.text.replace(',', '',).split()
+    cur_contact = cur_contact.execute(f"INSERT INTO orders (title, address, date_time_order) VALUES ('{res[0]}', '{res[1]}','{times}');")
+    start_connect.commit()
     await state.finish()
-    connect2.commit()
-
-dp.message_handler(state = OrderGet.order)
-async def UserInfo(message:types.Message, state:FSMContext):
-    cursor3 = connect3.cursor()
-    cursor3.execute(f"""INSERT INTO users VALUES ('{message.data_time_order}')""")
-    await state.finish()
-    connect3.commit()
-
+        
 executor.start_polling(dp)
