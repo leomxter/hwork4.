@@ -44,17 +44,17 @@ cur.execute("""CREATE TABLE  IF NOT EXISTS address(
 start_connect.commit()
 
 inline_kb = [
-        [InlineKeyboardButton("Отправить контакт", request_contact=True)],
-        [InlineKeyboardButton("Отправитьлокацию",request_location=True)],
+        [InlineKeyboardButton("Отправить номер", request_contact=True)],
+        [InlineKeyboardButton("Отправить локацию",request_location=True)],
         [InlineKeyboardButton("Заказать еду!", callback_data = "Заказать еду!")],
     ]
 inline_keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb)
 
 kb = [
-    [KeyboardButton("Отправить контакт", request_contact=True)],
+    [KeyboardButton("Отправить номер", request_contact=True)],
     [KeyboardButton("Заказать еду!")],
     
-    [KeyboardButton("Отправитьлокацию", request_location=True)]
+    [KeyboardButton("Отправить локацию", request_location=True)]
 ]
 keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keyboard=True,)
 
@@ -62,14 +62,19 @@ keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keybo
     
 @dp.message_handler(commands=["start"])
 async def start(message : types.Message):
-    cur  = start_connect.cursor()
-    cur.execute(f"SELECT chat_id FROM users WHERE  chat_id  == {message.from_user.id};")
-    result = cur.fetchall()
-    if result ==[]:
-        cur.execute(f"INSERT INTO users (first_name, last_name, username, chat_id, )VALUES ('{message.from_user.first_name}',  '{message.from_user.last_name}','{message.from_user.username}',{message.chat.id},);")
-        start_connect.commit()
-    await message.answer(f"Здравстуйте ,{message.from_user.full_name}. Вас приветствует администрация Geektech.\nЕсли хотите узнать обо мне больше нажмите: /help ", reply_markup=keyboard)
-    await message.answer("Вот что я могу", reply_markup=inline_keyboard)
+
+    # try:
+        cur  = start_connect.cursor()
+        cur.execute(f"SELECT chat_id FROM users WHERE  chat_id  == {message.from_user.id};")
+        result = cur.fetchall()
+        if result ==[]:
+            cur.execute(f"INSERT INTO users (first_name, last_name, username, chat_id )VALUES ('{message.from_user.first_name}','{message.from_user.last_name}','{message.from_user.username}',{message.chat.id});")
+            start_connect.commit()
+        await message.answer(f"Здравстуйте ,{message.from_user.full_name}. Вас приветствует администратор БОТА.\nЕсли хотите узнать обо мне больше нажмите: /help ", reply_markup=keyboard)
+        await message.answer("Вот что я могу", reply_markup=inline_keyboard)
+        
+    # except:
+    #     await message.answer("Вышли не большие ошибки обратитесь тех.админу: @asabale")
 
 @dp.message_handler(content_types=types.ContentType.CONTACT)
 async def get_contact(msg:types.Message):
@@ -91,18 +96,19 @@ class ContactForm(StatesGroup):
 @dp.message_handler(text = "Заказать еду!")
 async def start(message : types.Message):
     await message.answer("Введите ваш заказ следующим образом: ")
-    await message.reply("Еда, Адрес")
+    await message.reply("Еда, ВашАдрес")
     await ContactForm.client.set()
-    
-
 @dp.message_handler(state=ContactForm.client)
 async def get_contact(message: types.Message, state: FSMContext):
-    times = datetime.datetime.now()
+    # try:
+        times = datetime.datetime.now()
         
-    cur_contact = start_connect.cursor()
-    res = message.text.replace(',', '',).split()
-    cur_contact = cur_contact.execute(f"INSERT INTO orders (title, address, date_time_order) VALUES ('{res[0]}', '{res[1]}','{times}');")
-    start_connect.commit()
-    await state.finish()
+        cur_contact = start_connect.cursor()
+        res = message.text.replace(',', '',).split()
+        cur_contact = cur_contact.execute(f"INSERT INTO orders (title, address, date_time_order) VALUES ('{res[0]}', '{res[1]}','{times}');")
+        start_connect.commit()
+        await state.finish()
+    # except:
+    #     await message.answer("Вышли не большие ошибки обратитесь тех.админу: @asabale")
         
 executor.start_polling(dp)
